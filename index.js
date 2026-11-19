@@ -5,7 +5,9 @@ import { join } from "node:path";
 const dir = join(import.meta.dirname, "notebooks");
 
 // Titles are HTML text, so entities stay as they are. This escapes what Markdown and Notebook Kit's ${…} would read.
-const escape = (text) => text.replace(/[[\]\\`*_$]/g, (c) => `&#${c.charCodeAt(0)};`);
+const escape = (text) => text.replace(/\s+/g, " ").replace(/[[\]\\`*_~$]/g, (c) => `&#${c.charCodeAt(0)};`);
+// encodeURIComponent leaves ( and ), which would end a Markdown link.
+const href = (file) => encodeURIComponent(file).replace(/[()]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
 
 const items = readdirSync(dir)
   .filter((file) => file.endsWith(".html") && file !== "index.html")
@@ -26,7 +28,7 @@ writeFileSync(
 
     Observable notebooks that read [Stillwell](https://openwatersio.github.io/stillwell/docs/), Open Waters' store of water levels, live in your browser.
 
-${items.map(({ file, title }) => `    - [${escape(title)}](${encodeURIComponent(file)})`).join("\n")}
+${items.map(({ file, title }) => `    - [${escape(title)}](${href(file)})`).join("\n")}
 
     The source for each notebook is in [openwatersio/stillwell-notebooks](https://github.com/openwatersio/stillwell-notebooks).
   </script>

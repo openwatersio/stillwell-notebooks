@@ -31,11 +31,15 @@ jobs:
         run: npx -y lockfile-lint@5.1.0 --path package-lock.json --allowed-hosts npm --validate-https --validate-integrity --validate-package-names
       - run: npm ci
       - run: npm run build
-      # Pages serves the site under /stillwell-notebooks, so nothing built may use a root path: not an HTML attribute,
-      # a fetch in a cell's compiled JavaScript, or a CSS url().
-      - name: Check the build has no root paths
+      # Pages serves the site under /stillwell-notebooks, so a root path such as fetch("/data.json") or href="/" breaks
+      # there. The notebooks are checked as written, since compiled cells sit in minified bundles whose library code
+      # has strings like `/` too. The built HTML and CSS are checked for root paths in attributes.
+      - name: Check for root paths
         run: |
-          if grep -rhoE "(=|\(|url\()[\"']?/[a-zA-Z_][^\"') ]*" dist | sort -u | head -20 | grep .; then
+          if grep -noE "(=|\(|:)[[:space:]]*[\"'\`]/([^/\"'\`]|[\"'\`])|url\(/" notebooks/*.html | head -20 | grep .; then
+            exit 1
+          fi
+          if grep -rnoIE "[a-z-]+=[\"']/([^/\"']|[\"'])" dist --include='*.html' --include='*.css' | head -20 | grep .; then
             exit 1
           fi
       - if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'

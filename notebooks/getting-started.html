@@ -59,7 +59,7 @@
   <script type="module" hidden>
     const mapped = Array.from(stations).filter((d) => d.id === d.preferred);
     // The terms ask for each distinct credit line once wherever the data is shown.
-    const mapCredits = [...new Set(mapped.map((d) => d.attribution))].sort();
+    const mapCredits = [...new Set(mapped.map((d) => d.attribution).filter(Boolean))].sort();
   </script>
   <script type="text/html">
     <div class="station-map" role="status" aria-live="polite">${Plot.plot({
@@ -236,7 +236,7 @@
     ORDER BY l.time LIMIT 5
   </script>
   <script type="text/markdown">
-    ${inDatums.get(0)?.lat_m == null ? "This station has no LAT offset, so `lat_m` is null." : `A level of ${inDatums.get(0).nap_m.toFixed(2)} m in NAP is ${inDatums.get(0).lat_m.toFixed(2)} m above LAT.`} [Datums](https://openwatersio.github.io/stillwell/docs/guides/datums/) explains where each offset comes from and how to convert a station whose zero has moved.
+    ${inDatums.get(0).lat_m == null ? "This station has no LAT offset, so `lat_m` is null." : `A level of ${inDatums.get(0).nap_m.toFixed(2)} m in NAP is ${inDatums.get(0).lat_m.toFixed(2)} m above LAT.`} [Datums](https://openwatersio.github.io/stillwell/docs/guides/datums/) explains where each offset comes from and how to convert a station whose zero has moved.
 
     When displaying levels, include the credits in `attribution`. When using datum offsets, include `datums_attribution` too. Hoek van Holland's credits are:
       </script>

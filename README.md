@@ -26,6 +26,6 @@ npm install
 npm run preview
 ```
 
-`npm run preview` serves the notebooks and reloads them on change. `npm run build` writes the site to `dist/`.
+`npm run preview` serves the notebooks and reloads them on change. It writes the index when it starts, so restart it to list a new notebook or a changed title. `npm run build` writes the site to `dist/`.
 
 Don't format the notebooks with Prettier. It ends expression cells such as `table(found)` with a semicolon, which turns them into statements that display nothing.
