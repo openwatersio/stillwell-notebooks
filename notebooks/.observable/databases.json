@@ -1,0 +1,6 @@
+{
+  "duckdb": {
+    "type": "duckdb",
+    "options": { "TimeZone": "UTC" }
+  }
+}

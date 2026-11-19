@@ -26,7 +26,7 @@ writeFileSync(
   <script type="text/markdown">
     # Stillwell notebooks
 
-    Observable notebooks that read [Stillwell](https://openwatersio.github.io/stillwell/docs/), Open Waters' store of water levels, live in your browser.
+    Observable notebooks that read [Stillwell](https://openwatersio.github.io/stillwell/docs/), Open Waters' store of water levels. Each is rebuilt daily against the live store.
 
 ${items.map(({ file, title }) => `    - [${escape(title)}](${href(file)})`).join("\n")}
 

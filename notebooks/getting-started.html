@@ -6,12 +6,12 @@
 
     [Stillwell](https://openwatersio.github.io/stillwell/docs/) by [Open Waters](https://openwaters.io) is an open store of observed and predicted water levels from tide, river and lake gauges around the world. The data is published at `https://stillwell.openwaters.io/` as Parquet files (tables stored by column) and JSON files (metadata). You do not need an account or a local database.
 
-    These examples in this notebook run automatically against the live data in your browser and may take a minute to load.
+    The queries in this notebook run against the live store each day when the page is built, and the page loads with their results. These results are from ${stats.date.toISOString().slice(0, 10)}. The station search runs in your browser.
       </script>
   <script type="text/markdown">
     ## Set up DuckDB
 
-    `db` runs the SQL queries below. Ranged reads let it request parts of a file instead of downloading the whole file. We set the time zone to UTC so queries group dates consistently.
+    `db` runs the station search in your browser with DuckDB-WASM. Ranged reads let it request parts of a file instead of downloading the whole file. We set the time zone to UTC so queries group dates consistently. The other queries ran with DuckDB, also in UTC, when the page was built.
 
     The `table` helper displays query results. Charts use Observable Plot.
       </script>
@@ -40,9 +40,23 @@
       .station-map:empty::before { content: "Loading station map…"; }
     </style>
   </script>
-  <script type="application/sql" database="var:db" output="stations" hidden pinned>
-    SELECT id, name, lat, lon, preferred, attribution
+  <script type="application/sql" database="duckdb" output="mapStations" hidden pinned>
+    SELECT id, name, round(lat, 2) AS lat, round(lon, 2) AS lon
     FROM 'https://stillwell.openwaters.io/stations.parquet'
+    WHERE id = preferred
+  </script>
+  <script type="application/sql" database="duckdb" output="stats" hidden pinned>
+    SET VARIABLE files = (
+      SELECT list(DISTINCT 'https://stillwell.openwaters.io/stations/years/' || source || '.parquet')
+      FROM 'https://stillwell.openwaters.io/stations.parquet'
+      WHERE first IS NOT NULL
+    );
+    SELECT (SELECT count(*) FROM 'https://stillwell.openwaters.io/stations.parquet') AS stations,
+      (SELECT count(*) FROM read_json('https://stillwell.openwaters.io/sources.json')) AS sources,
+      sum(coalesce(good, 0) + coalesce(interpolated, 0) + coalesce(preliminary, 0) + coalesce(suspect, 0)
+        + coalesce(bad, 0))::DOUBLE AS observations,
+      min(year) AS first
+    FROM read_parquet(getvariable('files'), union_by_name = true)
   </script>
   <script type="module" hidden>
     const topojson = await import("https://esm.sh/topojson-client@3.1.0");
@@ -50,16 +64,17 @@
     const land = topojson.feature(world, world.objects.land);
   </script>
   <script type="text/markdown">
-    Stillwell contains [<span class="station-stat">${stations.numRows.toLocaleString("en-US")}</span> stations](https://openwatersio.github.io/stillwell/docs/guides/stations/) from [<span class="station-stat">${sources.length}</span> sources](https://openwatersio.github.io/stillwell/docs/sources/), with [<span class="station-stat">${(observed.get(0).values / 1e9).toLocaleString("en-US", { maximumFractionDigits: 1 })}</span> billion observations](https://openwatersio.github.io/stillwell/docs/reference/observations/) going back to <span class="station-stat">${observed.get(0).first}</span>. These totals are calculated from the published station catalog and observation inventories.
+    Stillwell contains [<span class="station-stat">${stats[0].stations.toLocaleString("en-US")}</span> stations](https://openwatersio.github.io/stillwell/docs/guides/stations/) from [<span class="station-stat">${stats[0].sources}</span> sources](https://openwatersio.github.io/stillwell/docs/sources/), with [<span class="station-stat">${(stats[0].observations / 1e9).toLocaleString("en-US", { maximumFractionDigits: 1 })}</span> billion observations](https://openwatersio.github.io/stillwell/docs/reference/observations/) going back to <span class="station-stat">${stats[0].first}</span>. These totals are calculated from the published station catalog and the observation inventory of each source with observations.
 
     The map shows only records where `id = preferred`, keeping one record from each group of linked stations. The totals above include all records. Some stations have no observations yet. Hover over a dot to see its name and ID.
 
     The files use a common layout, with [quality flags](https://openwatersio.github.io/stillwell/docs/guides/quality-control/) and, where available, offsets between [reference heights (datums)](https://openwatersio.github.io/stillwell/docs/guides/datums/).
       </script>
-  <script type="module" hidden>
-    const mapped = Array.from(stations).filter((d) => d.id === d.preferred);
-    // The terms ask for each distinct credit line once wherever the data is shown.
-    const mapCredits = [...new Set(mapped.map((d) => d.attribution).filter(Boolean))].sort();
+  <script type="application/sql" database="duckdb" output="mapCredits" hidden pinned>
+    SELECT DISTINCT attribution
+    FROM 'https://stillwell.openwaters.io/stations.parquet'
+    WHERE id = preferred AND attribution <> ''
+    ORDER BY attribution
   </script>
   <script type="text/html">
     <div class="station-map" role="status" aria-live="polite">${Plot.plot({
@@ -69,7 +84,7 @@
       marks: [
         Plot.sphere({ fill: "#eaf4f8", stroke: "#adbcc5" }),
         Plot.geo(land, { fill: "#d5ddd5" }),
-        Plot.dot(mapped, {
+        Plot.dot(mapStations, {
           x: "lon", y: "lat", r: 1.8, fill: "#167a9b", fillOpacity: 0.6,
           title: (d) => `${d.name}\n${d.id}`, tip: true
         })
@@ -77,24 +92,8 @@
     })}</div>
     <details>
       <summary>Credits for the stations on this map (${mapCredits.length.toLocaleString("en-US")})</summary>
-      <ul>${mapCredits.map((c) => html`<li>${c}</li>`)}</ul>
+      <ul>${mapCredits.map((d) => html`<li>${d.attribution}</li>`)}</ul>
     </details>
-  </script>
-  <script type="module" hidden>
-    const sources = await d3.json("https://stillwell.openwaters.io/sources.json");
-    // A source without observations has no years file; only a 404 can be skipped.
-    const yearFiles = (await Promise.all(sources.map(async (source) => {
-      const url = `https://stillwell.openwaters.io/stations/years/${source.id}.parquet`;
-      const response = await fetch(url, { method: "HEAD" });
-      if (response.status === 404) return undefined;
-      if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
-      return url;
-    }))).filter(Boolean);
-    const observed = await db.query(`
-      SELECT sum(good + interpolated + preliminary + suspect + bad)::DOUBLE AS values,
-        min(year) AS first
-      FROM read_parquet([${yearFiles.map((url) => `'${url.replaceAll("'", "''")}'`).join(", ")}])
-    `);
   </script>
   <script type="text/markdown">
     ### Find a station
@@ -127,7 +126,10 @@
 
     This query finds five stations near latitude 51.98° N, longitude 4.12° E. `lat` and `lon` are coordinates in degrees; `km` is an approximate distance. This local approximation is not suitable for distances across the world.
       </script>
-  <script type="application/sql" database="var:db" output="nearest" pinned>
+  <script type="module">
+    table(nearest)
+  </script>
+  <script type="application/sql" database="duckdb" output="nearest" hidden pinned>
     SELECT id, name, kind, status, lat, lon,
       round(111.2 * sqrt((lat - 51.98) ^ 2 + ((lon - 4.12) * cos(radians(51.98))) ^ 2), 1) AS km,
       attribution
@@ -145,7 +147,7 @@
   <script type="module">
     table(years)
   </script>
-  <script type="application/sql" database="var:db" output="years" hidden pinned>
+  <script type="application/sql" database="duckdb" output="years" hidden pinned>
     SELECT year, hours, good, interpolated, preliminary, suspect + bad AS flagged
     FROM 'https://stillwell.openwaters.io/stations/years/rws.parquet'
     WHERE id = 'rws/hoekvanholland' AND year >= 2020
@@ -171,13 +173,13 @@
 
     ## Read observed water levels
 
-    A year's file is at `obs/<id>/<year>.parquet`. Read one year, leaving out values flagged suspect or bad:
+    A year's file is at `obs/<id>/<year>.parquet`. Read one year, leaving out values flagged suspect or bad. Each row is one measurement with its `time`, `level_m`, `flag` and `datum`. This query sums up each day's lowest and highest level:
       </script>
-  <script type="application/sql" database="var:db" output="levels" pinned>
-    SELECT time, level_m, flag, datum
+  <script type="application/sql" database="duckdb" output="levels" hidden pinned>
+    SELECT time::DATE AS day, min(level_m) AS low_m, max(level_m) AS high_m, count(*) AS "values"
     FROM 'https://stillwell.openwaters.io/obs/rws/hoekvanholland/2025.parquet'
     WHERE flag <= 2
-    ORDER BY time
+    GROUP BY day ORDER BY day
   </script>
   <script type="module" pinned>
     Plot.plot({
@@ -185,15 +187,16 @@
       height: 240,
       x: { label: null },
       y: { label: "Level (m, NAP)", grid: true },
-      marks: [Plot.lineY(levels, { x: "time", y: "level_m", strokeWidth: 0.5 })]
+      // One bar per day, so a day with no values shows as a gap.
+      marks: [Plot.rectY(levels, { x: "day", interval: "day", y1: "low_m", y2: "high_m", fill: "#167a9b", tip: true })]
     })
   </script>
   <script type="text/markdown">
-    The query returns ${levels.numRows.toLocaleString("en-US")} values after filtering. This station reports at 10-minute intervals; missing or excluded values can leave gaps.
+    The chart shows each day's range of ${d3.sum(levels, (d) => d.values).toLocaleString("en-US")} values after filtering. This station reports at 10-minute intervals; missing or excluded values can leave gaps.
 
     When reading observations:
 
-    - **Times are UTC.** DuckDB returns them as milliseconds since 1970. A `Date` made from one shows in your local time zone unless you format it in UTC, as with `toISOString()`.
+    - **Times are UTC.** DuckDB-WASM returns them as milliseconds since 1970. A `Date` made from one shows in your local time zone unless you format it in UTC, as with `toISOString()`.
     - **Levels are in meters above a reference height**, called a datum. Each row names its datum. Hoek van Holland uses NAP, the Dutch national height system. [Refer them to another datum](#refer-levels-to-another-datum) below.
     - **`flag <= 2`** keeps every value not flagged suspect or bad, including preliminary ones. Use the [quality flag definitions](https://openwatersio.github.io/stillwell/docs/guides/quality-control/) to decide which values suit your analysis.
     - **Select only the columns you need.** With ranged reads, DuckDB then fetches only those columns.
@@ -205,7 +208,7 @@
   <script type="module">
     table(fiveYears)
   </script>
-  <script type="application/sql" database="var:db" output="fiveYears" hidden pinned>
+  <script type="application/sql" database="duckdb" output="fiveYears" hidden pinned>
     SET VARIABLE files = (
       SELECT list('https://stillwell.openwaters.io/obs/' || id || '/' || year || '.parquet' ORDER BY year)
       FROM 'https://stillwell.openwaters.io/stations/years/rws.parquet'
@@ -226,8 +229,11 @@
 
     A station's `datums` column lists offsets in meters. Add an offset to express the same water level relative to another reference height. This example converts NAP levels to mean sea level (`MSL`) and lowest astronomical tide (`LAT`). An unavailable offset produces a null result.
       </script>
-  <script type="application/sql" database="var:db" output="inDatums" pinned>
-    SELECT l.time, l.level_m AS nap_m,
+  <script type="module">
+    table(inDatums)
+  </script>
+  <script type="application/sql" database="duckdb" output="inDatums" hidden pinned>
+    SELECT l.time::TIMESTAMP AS time, l.level_m AS nap_m,
       round(l.level_m + s.datums['MSL'], 3) AS msl_m,
       round(l.level_m + s.datums['LAT'], 3) AS lat_m
     FROM 'https://stillwell.openwaters.io/obs/rws/hoekvanholland/2025.parquet' l,
@@ -236,17 +242,17 @@
     ORDER BY l.time LIMIT 5
   </script>
   <script type="text/markdown">
-    ${inDatums.get(0).lat_m == null ? "This station has no LAT offset, so `lat_m` is null." : `A level of ${inDatums.get(0).nap_m.toFixed(2)} m in NAP is ${inDatums.get(0).lat_m.toFixed(2)} m above LAT.`} [Datums](https://openwatersio.github.io/stillwell/docs/guides/datums/) explains where each offset comes from and how to convert a station whose zero has moved.
+    ${inDatums[0].lat_m == null ? "This station has no LAT offset, so `lat_m` is null." : `A level of ${inDatums[0].nap_m.toFixed(2)} m in NAP is ${inDatums[0].lat_m.toFixed(2)} m above LAT.`} [Datums](https://openwatersio.github.io/stillwell/docs/guides/datums/) explains where each offset comes from and how to convert a station whose zero has moved.
 
     When displaying levels, include the credits in `attribution`. When using datum offsets, include `datums_attribution` too. Hoek van Holland's credits are:
       </script>
-  <script type="application/sql" database="var:db" output="credits" hidden pinned>
+  <script type="application/sql" database="duckdb" output="credits" hidden pinned>
     SELECT attribution, datums_attribution
     FROM 'https://stillwell.openwaters.io/stations.parquet'
     WHERE id = 'rws/hoekvanholland'
   </script>
   <script type="text/markdown">
-    ${[credits.get(0).attribution, ...(credits.get(0).datums_attribution ?? [])].filter(Boolean).map((c) => `- ${c}`).join("\n")}
+    ${[credits[0].attribution, ...(credits[0].datums_attribution ?? [])].filter(Boolean).map((c) => `- ${c}`).join("\n")}
 
     [Terms](https://openwatersio.github.io/stillwell/docs/guides/terms/) covers what each source asks for.
 
@@ -254,8 +260,11 @@
 
     Rijkswaterstaat also publishes tide predictions for Hoek van Holland. This query matches observations and predictions at the same time, subtracts the prediction from the observation, and finds the three days in 2025 with the largest positive difference. `surge_m` names that difference in the result; it does not identify its cause.
       </script>
-  <script type="application/sql" database="var:db" output="surgeDays" pinned>
-    SELECT o.time::DATE AS day, max(o.level_m - p.level_m)::DECIMAL(4, 2) AS surge_m,
+  <script type="module">
+    table(surgeDays)
+  </script>
+  <script type="application/sql" database="duckdb" output="surgeDays" hidden pinned>
+    SELECT o.time::DATE AS day, round(max(o.level_m - p.level_m), 2) AS surge_m,
       max(o.level_m) AS highest_m
     FROM 'https://stillwell.openwaters.io/obs/rws/hoekvanholland/2025.parquet' o
     JOIN 'https://stillwell.openwaters.io/predictions/rws/hoekvanholland/2025.parquet' p USING (time)
@@ -265,12 +274,18 @@
   <script type="text/markdown">
     The chart shows the day with the largest difference, plus the day before and the day after:
       </script>
-  <script type="application/sql" database="var:db" output="surge" hidden pinned>
-    SELECT o.time, o.level_m AS measured_m, p.level_m AS predicted_m
+  <script type="application/sql" database="duckdb" output="surge" hidden pinned>
+    WITH top AS (
+      SELECT o.time::DATE AS day
+      FROM 'https://stillwell.openwaters.io/obs/rws/hoekvanholland/2025.parquet' o
+      JOIN 'https://stillwell.openwaters.io/predictions/rws/hoekvanholland/2025.parquet' p USING (time)
+      WHERE o.flag <= 2
+      GROUP BY day ORDER BY round(max(o.level_m - p.level_m), 2) DESC, day LIMIT 1
+    )
+    SELECT o.time::TIMESTAMP AS time, o.level_m AS measured_m, p.level_m AS predicted_m
     FROM 'https://stillwell.openwaters.io/obs/rws/hoekvanholland/2025.parquet' o
-    JOIN 'https://stillwell.openwaters.io/predictions/rws/hoekvanholland/2025.parquet' p USING (time)
-    WHERE o.flag <= 2 AND o.time >= ${new Date(surgeDays.get(0).day).toISOString()}::TIMESTAMPTZ - INTERVAL 1 DAY
-      AND o.time < ${new Date(surgeDays.get(0).day).toISOString()}::TIMESTAMPTZ + INTERVAL 2 DAY
+    JOIN 'https://stillwell.openwaters.io/predictions/rws/hoekvanholland/2025.parquet' p USING (time), top
+    WHERE o.flag <= 2 AND o.time >= top.day - INTERVAL 1 DAY AND o.time < top.day + INTERVAL 2 DAY
     ORDER BY o.time
   </script>
   <script type="module" pinned>
@@ -293,7 +308,10 @@
 
     This query compares the current year's monthly average levels with averages for the same calendar months over the previous ten years. It averages the available measurements after filtering. The current month may be incomplete, and missing data can affect either average.
       </script>
-  <script type="application/sql" database="var:db" output="months" pinned>
+  <script type="module">
+    table(months)
+  </script>
+  <script type="application/sql" database="duckdb" output="months" hidden pinned>
     SET VARIABLE files = (
       SELECT list('https://stillwell.openwaters.io/obs/' || id || '/' || year || '.parquet' ORDER BY year)
       FROM 'https://stillwell.openwaters.io/stations/years/rws.parquet'

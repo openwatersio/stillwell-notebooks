@@ -1,10 +1,13 @@
 name: Pages
 
-# Build the notebooks with Notebook Kit. Pull requests only build. Pushes to main deploy to GitHub Pages.
+# Build the notebooks with Notebook Kit, which runs their build-time queries against the live store. Pull requests only
+# build. Pushes to main deploy to GitHub Pages, and so does a daily run, which refreshes the results.
 on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: "0 8 * * *"
   workflow_dispatch:
 
 permissions:
@@ -31,15 +34,11 @@ jobs:
         run: npx -y lockfile-lint@5.1.0 --path package-lock.json --allowed-hosts npm --validate-https --validate-integrity --validate-package-names
       - run: npm ci
       - run: npm run build
-      # Pages serves the site under /stillwell-notebooks, so a root path such as fetch("/data.json") or href="/" breaks
-      # there. The notebooks are checked as written, since compiled cells sit in minified bundles whose library code
-      # has strings like `/` too. The built HTML and CSS are checked for root paths in attributes.
-      - name: Check for root paths
+      # Pages serves the site under /stillwell-notebooks, so a root path in an HTML attribute, such as href="/", breaks
+      # there. Notebook Kit's own asset paths are relative.
+      - name: Check the HTML has no root paths
         run: |
-          if grep -noE "(=|\(|:)[[:space:]]*[\"'\`]/([^/\"'\`]|[\"'\`])|url\(/" notebooks/*.html | head -20 | grep .; then
-            exit 1
-          fi
-          if grep -rnoIE "[a-z-]+=[\"']/([^/\"']|[\"'])" dist --include='*.html' --include='*.css' | head -20 | grep .; then
+          if grep -rnoE "[a-z-]+=[\"']/([^/\"']|[\"'])" dist --include='*.html' | head -20 | grep .; then
             exit 1
           fi
       - if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
