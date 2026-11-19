@@ -1,0 +1,13 @@
+{
+  "name": "stillwell-notebooks",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "index": "node index.js",
+    "preview": "npm run index && notebooks preview --root notebooks",
+    "build": "npm run index && notebooks build --root notebooks --out ../dist --empty -- notebooks/*.html"
+  },
+  "dependencies": {
+    "@observablehq/notebook-kit": "2.11.0"
+  }
+}

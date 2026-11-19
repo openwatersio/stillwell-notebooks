@@ -9,7 +9,7 @@ They're published at https://openwatersio.github.io/stillwell-notebooks/.
 1. Add an HTML file to [notebooks/](notebooks/) in [Notebook Kit's format](https://observablehq.com/notebook-kit/): a `<notebook>` element with a `<title>` and one `<script>` per cell. [getting-started.html](notebooks/getting-started.html) is an example.
 2. Open it in a pull request. The [Pages workflow](.github/workflows/pages.yml) builds it, and deploys it once it's merged.
 
-The file name is the notebook's address: `notebooks/tides.html` publishes at `/stillwell-notebooks/tides.html`. The index lists every notebook by its `<title>`. [index.js](index.js) writes it on every build, so don't edit `notebooks/index.html`.
+The file name is the notebook's address: `notebooks/tides.html` publishes at `/stillwell-notebooks/tides.html`. The index lists every notebook by its `<title>`. [index.js](index.js) writes it on every build as `notebooks/index.html`, so that name can't be used for a notebook.
 
 Cells read the store through a DuckDB client with ranged reads, so a query fetches only the parts of a file it needs:
 
