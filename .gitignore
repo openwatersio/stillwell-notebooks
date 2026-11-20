@@ -3,5 +3,5 @@ dist/
 # Query results, and the DuckDB secret and extensions the npm scripts keep in a HOME of their own.
 notebooks/.observable/cache/
 notebooks/.observable/home/
-# Written by index.js on every build.
-notebooks/index.html
+# Written from the Markdown notebooks and by index.js on every build.
+notebooks/*.html
