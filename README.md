@@ -13,7 +13,7 @@ Each file becomes a notebook in [Notebook Kit's format](https://observablehq.com
 
 - The first `# ` heading is the notebook's title.
 - Prose becomes Markdown cells, which can use `${…}` to show a value from another cell.
-- A top-level fence whose language is a cell type runs as a cell: `js`, `ts`, `ojs`, `sql`, `html`, `tex`, `dot`, `node`, `python` or `r`. Words after the language set the cell's attributes: `output=<name>` names a SQL cell's result, `database=<name>` picks its database, `format=<format>` sets a `node`, `python` or `r` cell's output format, `hidden` hides its output, and `pinned` shows its code. Cell types are lowercase. A misspelled or misplaced attribute stops the build, as does a fence or an HTML comment left open, which would otherwise swallow the cells after it.
+- A top-level fence whose language is a cell type runs as a cell: `js`, `ts`, `ojs`, `sql`, `sql.view`, `html`, `tex`, `dot`, `node`, `python` or `r`. Words after the language set the cell's attributes: `output=<name>` names a SQL cell's result, `database=<name>` picks its database, `format=<format>` sets a `node`, `python` or `r` cell's output format, `hidden` hides its output, and `pinned` shows its code. Cell types are lowercase. A misspelled or misplaced attribute stops the build, as does a fence or an HTML comment left open, which would otherwise swallow the cells after it.
 - Any other fence, such as ```` ```text ````, stays in the prose as a code block, as does a fence inside a list, a blockquote or an HTML comment. A fence after a blank line inside another HTML block, such as `<details>`, still runs as a cell.
 - Each run of prose between cells renders on its own, so a reference link such as `[docs][d]` needs its `[d]: …` definition in the same run.
 

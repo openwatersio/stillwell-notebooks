@@ -12,7 +12,7 @@ import { JSDOM } from "jsdom";
 // Notebook Kit's own copy of markdown-it, so prose splits where the kit's renderer would read it.
 const MarkdownIt = createRequire(import.meta.resolve("@observablehq/notebook-kit"))("markdown-it");
 
-const MODES = new Set(["js", "ts", "ojs", "html", "tex", "dot", "sql", "node", "python", "r"]);
+const MODES = new Set(["js", "ts", "ojs", "html", "tex", "dot", "sql", "sql.view", "node", "python", "r"]);
 const FLAGS = new Set(["hidden", "pinned"]);
 const VALUES = new Set(["output", "database", "format"]);
 const JAVASCRIPT = new Set(["js", "ts", "ojs"]);
@@ -101,8 +101,7 @@ if (process.argv[1] && realpathSync(process.argv[1]) === import.meta.filename) {
   const dir = join(import.meta.dirname, "notebooks");
   const files = readdirSync(dir);
   for (const file of files.filter((f) => f.endsWith(".html") && f !== "index.html")) {
-    const md = file.replace(/\.html$/, ".md");
-    if (!files.includes(md) && !readFileSync(join(dir, file), "utf8").includes(GENERATED)) {
+    if (!readFileSync(join(dir, file), "utf8").includes(GENERATED)) {
       throw new Error(`notebooks/${file} isn't from a Markdown notebook; notebooks are written in Markdown`);
     }
     rmSync(join(dir, file));

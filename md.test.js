@@ -18,6 +18,10 @@ test("prose, cells and attributes", () => {
   assert.match(html, /<script id="4" type="text\/markdown">\s+```text\s+shown, not run\s+```\s+<\/script>/);
 });
 
+test("a sql.view fence is a cell", () => {
+  assert.match(convert("# T\n\n```sql.view output=v database=duckdb\nSELECT 1\n```"), /<script id="2" type="application\/sql\+view" database="duckdb" output="v">/);
+});
+
 test("the title is the heading's text", () => {
   assert.match(convert("# Tides *and* `currents` <em>x</em>"), /<title>Tides and currents x<\/title>/);
   assert.match(convert("# T", "a$'b--c.md"), /<!-- Written by md.js from notebooks\/a\$'b-\\-c.md -->/);
