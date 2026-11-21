@@ -36,3 +36,7 @@ npm run preview
 `npm run preview` serves the notebooks and reloads them on change. It writes the index when it starts, so restart it to list a new notebook or a changed title. `npm run build` writes the site to `dist/`.
 
 Don't format the notebooks with Prettier. It ends expression cells such as `table(found)` with a semicolon, which turns them into statements that display nothing.
+
+## License
+
+The notebooks are © Open Water Software, LLC and contributors, and licensed under [AGPL-3.0](LICENSE). The data they read keeps [Stillwell's license](https://github.com/openwatersio/stillwell#license).
