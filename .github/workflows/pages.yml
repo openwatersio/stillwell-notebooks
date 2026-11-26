@@ -33,6 +33,7 @@ jobs:
       - name: Check every package resolves from the npm registry
         run: npx -y lockfile-lint@5.1.0 --path package-lock.json --allowed-hosts npm --validate-https --validate-integrity --validate-package-names
       - run: npm ci
+      - run: npm test
       - run: npm run build
       # Pages serves the site under /stillwell-notebooks, so a root path in an HTML attribute, such as href="/", breaks
       # there. Notebook Kit's own asset paths are relative.
